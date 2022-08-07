@@ -1,0 +1,535 @@
+import sys
+import time
+from tkinter import *
+from tkinter import ttk, messagebox
+from time import strftime, time
+from time import sleep
+from datetime import datetime, timedelta
+import mysql.connector
+from plyer import notification
+from PIL import Image, ImageTk
+
+
+def query_database():
+    global count
+    count = 0
+    mysqldb = mysql.connector.connect(host='localhost', user='root', password='',database='newlist')
+    cursor = mysqldb.cursor()
+
+    dateToday = datetime.now().strftime('%Y-%m-%d')
+    Todaysql = "select * from tasklist where date = %s"
+    val=(dateToday,)
+    cursor.execute(Todaysql,val)
+    recordToday = cursor.fetchall()
+    print(recordToday)
+
+    for getRecord in recordToday:
+        if count % 2 == 0:
+            my_tree.insert(parent='', index='end', iid=count, text='', values=(getRecord[2], getRecord[3]), tags=('evenrow',))
+        else:
+            my_tree.insert(parent='', index='end', iid=count, text='', values=(getRecord[2], getRecord[3]), tags=('oddrow',))
+        count += 1
+
+    tomDate = (datetime.now() + timedelta(1)).strftime('%Y-%m-%d')
+    Todaysql = "select * from tasklist where date = %s"
+    val = (tomDate,)
+    cursor.execute(Todaysql, val)
+    recordToday = cursor.fetchall()
+
+    for getRecord in recordToday:
+        if count % 2 == 0:
+            my_tree2.insert(parent='', index='end', iid=count, text='', values=(getRecord[2], getRecord[3]),tags=('evenrow',))
+        else:
+            my_tree2.insert(parent='', index='end', iid=count, text='', values=(getRecord[2], getRecord[3]),tags=('oddrow',))
+        count += 1
+
+
+def add_function():
+    string = strftime('%I:%M')
+    taskname = ln_entry.get()
+    dueTime = myTime.get()
+    dueDay = myDay.get()
+    median = var1.get()
+
+    global count
+
+    if len(taskname) == 0:
+        messagebox.showerror('Input Error', 'Please enter the task !')
+        return
+
+    if dueDay == 'Today':
+        count = 0
+        present_date = datetime.now()
+
+        if dueTime < string and median == 0:
+            messagebox.showerror('Time Input Error', 'Please select the After now ! ')
+            return
+
+
+        if count % 2 == 0:
+            my_tree.insert(parent='', index='end', text='', values=(taskname, dueTime), tags=('evenrow',))
+        else:
+            my_tree.insert(parent='', index='end', text='', values=(taskname, dueTime), tags=('oddrow',))
+
+        messagebox.showinfo('New Task', 'New Task Added successfully ! ')
+
+        mysqldb = mysql.connector.connect(host='localhost', user='root', password='', database='newlist')
+        mycursor = mysqldb.cursor()
+        print(taskname, dueTime)
+
+        try:
+            sql = "INSERT INTO  tasklist (date, taskname, duetime) VALUES (%s, %s, %s)"
+            val = (present_date.strftime('%Y-%m-%d'),taskname, dueTime)
+            mycursor.execute(sql, val)
+            mysqldb.commit()
+            mysqldb.close()
+
+        except Exception as e:
+            print(e)
+            mysqldb.rollback()
+            mysqldb.close()
+
+        mynotify(dueTime,taskname)
+
+    elif dueDay == (datetime.now() + timedelta(1)).strftime('%d-%m-%Y'):
+        count = 0
+        mysqldb = mysql.connector.connect(host='localhost', user='root', password='', database='newlist')
+        mycursor = mysqldb.cursor()
+        print(dueDay, taskname, dueTime)
+        # global count
+        try:
+            sql = "INSERT INTO  tasklist (date,taskname, duetime) VALUES (%s,%s, %s)"
+            val = ((datetime.now()+timedelta(1)).strftime('%Y-%m-%d'),taskname, dueTime)
+            mycursor.execute(sql, val)
+            if count % 2 == 0:
+                my_tree2.insert(parent='', index='end', text='', values=(taskname, dueTime), tags=('evenrow',))
+            else:
+                my_tree2.insert(parent='', index='end', text='', values=(taskname, dueTime), tags=('oddrow',))
+            mysqldb.commit()
+            mysqldb.close()
+
+        except Exception as e:
+            # print(e)
+            mysqldb.rollback()
+            mysqldb.close()
+
+    elif dueDay == (datetime.now()+timedelta(2)).strftime('%d-%m-%Y'):
+        mysqldb = mysql.connector.connect(host='localhost', user='root', password='', database='newlist')
+        mycursor = mysqldb.cursor()
+
+        try:
+            sql = "INSERT INTO  tasklist (date,taskname, duetime) VALUES (%s,%s, %s)"
+            val = ((datetime.now() + timedelta(2)).strftime('%Y-%m-%d'), taskname, dueTime)
+            mycursor.execute(sql, val)
+            mysqldb.commit()
+            mysqldb.close()
+
+        except Exception as e:
+            # print(e)
+            mysqldb.rollback()
+            mysqldb.close()
+
+    ln_entry.delete(0, END)
+    count += 1
+
+
+def clear_entries():
+    # Clear entry boxes
+    # fn_entry.delete(0, END)
+    ln_entry.delete(0, END)
+    # id_entry.delete(0, END)
+
+
+# Select Record
+def select_record(e):
+    # Clear entry boxes
+    # fn_entry.delete(0, END)
+    ln_entry.delete(0, END)
+    id_entry.delete(0, END)
+
+    # Grab record Number
+    selected = my_tree.focus()
+    # Grab record values
+    values = my_tree.item(selected, 'values')
+
+    # outpus to entry boxes
+    # fn_entry.insert(0, values[0])
+    ln_entry.insert(0, values[1])
+    id_entry.insert(0, values[2])
+
+
+def remove_one():
+    mysqldb = mysql.connector.connect(host="localhost", user="root", password="", database="newlist")
+    c = mysqldb.cursor()
+
+    if my_tree.selection():
+        x = my_tree.selection()[0]
+        itemtext = my_tree.item(x).values()
+        itemtext = list(itemtext)
+        newlist = itemtext[2]
+        deleteDB = newlist[0]
+        my_tree.delete(x)
+
+        if (len(deleteDB) != 0):
+            sql = "Delete from tasklist where taskname = %s "
+            val = (deleteDB,)
+            c.execute(sql, val)
+            mysqldb.commit()
+
+    else:
+        x2 = my_tree2.selection()[0]
+        itemtext2 = my_tree2.item(x2).values()
+        itemtext2 = list(itemtext2)
+        newlist2= itemtext2[2]
+        deleteDB2 = newlist2[0]
+        my_tree2.delete(x2)
+
+        if (len(deleteDB2) != 0):
+            sql = "Delete from tasklist where taskname = %s "
+            val = (deleteDB2,)
+            c.execute(sql, val)
+            mysqldb.commit()
+
+    mysqldb.close()
+    clear_entries()
+    messagebox.showinfo("Deleted!", "Your Task Has Been Deleted!")
+
+
+
+
+def mynotify(mytime,message):
+    import time
+    d = datetime.now().strftime('%I:%M')
+    times = []
+    times.append(mytime)
+    for outtime in times:
+        if outtime[0:2] == d[0:2]:
+            if outtime[3] == d[3]:
+                newtimeout = int(outtime[3:5]) - int(d[3:5])
+                print(newtimeout)
+                time.sleep(newtimeout*60)
+                notification.notify(
+                        title="To-Do-List Application",
+                        message=message,
+                        app_icon="newicon.ico",
+                        # app_name='Task Organizer',
+                        timeout=4
+                )
+
+def logout():
+    messagebox.showinfo('LogOut', 'Thanks for using the To-Do')
+    exit()
+
+
+def up():
+    if my_tree.selection():
+        rows = my_tree.selection()
+        for row in rows:
+            my_tree.move(row, my_tree.parent(row), my_tree.index(row) - 1)
+
+        return
+    elif my_tree2.selection():
+        rows = my_tree2.selection()
+        for row in rows:
+            my_tree2.move(row, my_tree2.parent(row), my_tree2.index(row) - 1)
+
+
+def down():
+    if my_tree.selection():
+        rows = my_tree.selection()
+        for row in reversed(rows):
+            my_tree.move(row, my_tree.parent(row), my_tree.index(row) + 1)
+    elif my_tree2.selection():
+        rows = my_tree2.selection()
+        for row in reversed(rows):
+            my_tree2.move(row, my_tree2.parent(row), my_tree2.index(row) + 1)
+
+
+
+def change_status():
+    mysqldb = mysql.connector.connect(host="localhost", user="root", password="", database="newlist")
+    c = mysqldb.cursor()
+
+    if my_tree.selection():
+        selected = my_tree.focus()
+        x = my_tree.selection()[0]
+        itemtext = my_tree.item(x).values()
+        itemtext = list(itemtext)
+
+        newlist = itemtext[2]
+        deleteDB = newlist[0]
+        print(deleteDB)
+        my_tree.item(selected, text="", values=(deleteDB, "\t ------- DONE ------ "))
+        sql = "Delete from tasklist where taskname = %s "
+        val = (deleteDB,)
+        c.execute(sql, val)
+        mysqldb.commit()
+
+    else:
+        selected = my_tree2.focus()
+        x = my_tree2.selection()[0]
+        itemtext = my_tree2.item(x).values()
+        itemtext = list(itemtext)
+        newlist = itemtext[2]
+        deleteDB2 = newlist[0]
+        print(deleteDB2)
+        my_tree2.item(selected, text="", values=(deleteDB2, "\t ------- DONE ------ "))
+        sql = "Delete from tasklist where taskname = %s "
+        val = (deleteDB2,)
+        c.execute(sql, val)
+        mysqldb.commit()
+
+
+    mysqldb.close()
+    clear_entries()
+    messagebox.showinfo("Congratulations!", "You have Done it !! :) ")
+
+
+def about_us_page():
+    abt = Tk()
+    abt.title("About us")
+    abt.config(background='lightgrey')
+    abt.geometry('300x300')
+    abt.iconbitmap('icon.ico')
+    format_mess = "To - Do -  List Application \n\n" \
+                  "Created by - \n" \
+                  "Hardeek Karkare\n" \
+                  "Mohammad Danish\n" \
+                  "Alok Kavilkar\n\n" \
+                  "ⓒ at To-Do Organizer"
+    Label(abt, text=format_mess, font=('Bradley Hand ITC', 14, 'bold')).place(x=30, y=30)
+    Button(abt, text='Ok', command=abt.destroy, background='lightblue',font=('courier'), height=1, width=6, foreground='black').place(x=120, y=250)
+    abt.mainloop()
+
+def register():
+    top.destroy()
+    rgb = Tk()
+    rgb.title("Admin-Register")
+    rgb.iconbitmap('newicon.ico')
+    rgb.config(background='lightgrey')
+    rgb.geometry("400x400+400+200")
+    rgb.resizable(width=FALSE, height=FALSE)
+    getName = StringVar()
+    getPass = StringVar()
+
+
+
+    AppLabel = Label(rgb, text='Task Organizer', font=('Cascadia Mono', 20,), background='lightgrey').place(x=94, y=20)
+    LABEL_1 = Label(rgb, text="USER NAME", font=('courier')).place(x=30, y=130)
+    LABEL_2 = Label(rgb, text="PASSWORD", font=('courier')).place(x=30, y=200)
+
+    name_entry = Entry(rgb, width=15, bd=0, textvariable=getName, font=('courier', 10), justify='center').place(x=180,y=130)
+    password_entry = Entry(rgb, width=15, bd=0, show="*", textvariable=getPass, font=('courier', 10),justify='center').place(x=180, y=200)
+
+    def command1():
+            if getName.get() == '' and  getPass.get() == '':
+                messagebox.showinfo('Welcome', 'Welcome in To-Do-Organizer')
+                top.destroy()  # Removes the toplevel window
+                root.destroy()  # Removes the hidden root window
+                sys.exit()
+            else:
+                messagebox.showerror('Input', 'Please, enter something to get validate..')
+                return
+
+    BUTTON_2 = Button(rgb, text="Register", command=command1, width=9, height=2, font=('courier'),background='lightblue').place(x=150, y=300)
+
+
+# ---------------------------------------------------------------------------------------------------------
+if __name__ == "__main__":
+
+    root = Tk()
+    root.config(background='white')
+    top = Toplevel()
+    top.title("Admin-Login")
+    top.iconbitmap('newicon.ico')
+    top.config(background='white')
+    top.geometry("400x400+400+200")
+    top.resizable(width=FALSE, height=FALSE)
+    userPass = []
+    getName = StringVar()
+    getPass = StringVar()
+    def command1():
+        if getName.get() == "user" and getPass.get() == "password":  # Checks whether username and password are correct
+            messagebox.showinfo('Congrats','Successful login !')
+            root.deiconify()  # Unhides the root window
+            top.destroy()  # Removes the toplevel window
+        else:
+            messagebox.showerror('Error', 'Please check the password and user name !')
+
+    def command2():
+        top.destroy()  # Removes the toplevel window
+        root.destroy()  # Removes the hidden root window
+        sys.exit()
+
+    AppLabel = Label(top,text='Task Organizer', font=('Cascadia Mono', 20,), background='white').place(x=94,y=20)
+    LABEL_1 = Label(top, text="USER NAME", font=('courier')).place(x=30, y=130)
+    LABEL_2 = Label(top, text="PASSWORD",font=('courier')).place(x=30, y=200)
+
+    BUTTON_1 = Button(top, text="Login", command=command1, width=9, height=2, font=('courier'), background='lightblue').place(x=50, y=300)
+    BUTTON_1 = Button(top, text="Register",command=register, width=9, height=2, font=('courier'),background='lightblue').place(x=150, y=300)
+    BUTTON_1 = Button(top, text="Cancel", command=command2,width=9, height=2, font=('courier'), background='lightblue').place(x=250, y=300)
+
+
+
+    image1 = Image.open('search png.png')
+    img1 = image1.resize((200, 70))
+    my_img1 = ImageTk.PhotoImage(img1)
+    entryphoto1 = Label(top, image=my_img1).place(x=150, y=100)
+    passPhoto = Label(top,image=my_img1).place(x=150, y=170)
+    name_entry = Entry(top, width=15, bd=0,textvariable=getName, font=('courier', 10), justify='center').place(x=180, y=130)
+    password_entry = Entry(top, width=15, bd=0,show="*", textvariable=getPass, font=('courier', 10), justify='center').place(x=180, y=200)
+
+    root.withdraw()
+    root.title('To-Do-List Application')
+    root.iconbitmap('newicon.ico')
+    root.geometry("1000x600")
+    root.resizable(False, False)
+
+    daytime = strftime('%Y/%m/%d')
+    myDayLabel = Label(root, background='LightGrey', font=('Courier', 15))
+    myDayLabel.config(text=daytime)
+    # myDayLabel.after(1000)
+    myDayLabel.place(x=15, y=97)
+
+    currentTimeDate = datetime.now() + timedelta(days=1)
+    currentTime = currentTimeDate.strftime('%Y/%m/%d')
+    myDayLabel2 = Label(root, text=currentTime, background='LightGrey', font=('Courier', 15))
+    myDayLabel2.place(x=15, y=290)
+
+
+
+    data_frame = LabelFrame(root, text="LIST", font=('consolas'))
+    data_frame.pack(fill="x", expand="yes", padx=30)
+
+    ln_label = Label(data_frame, text="TASK", font=('courier',13,'bold'))
+    ln_label.grid(row=0, column=2, padx=10, pady=10)
+    image = Image.open('search png.png')
+    img = image.resize((200, 50))
+    my_img = ImageTk.PhotoImage(img)
+    entryphoto = Label(data_frame, image=my_img).grid(row=0, column=3)
+    ln_entry = Entry(data_frame, font=('Courier'), justify='center', width=10, bd=0)
+    ln_entry.grid(row=0, column=3, padx=10, pady=10)
+
+    id_label = Label(data_frame, text="DUE TIME", font=('courier',13,'bold')).grid(row=0, column=4, padx=10, pady=10)
+    image3 = Image.open('search png.png')
+    img3 = image3.resize((200, 50))
+    my_img3 = ImageTk.PhotoImage(img3)
+    entryphoto3 = Label(data_frame, image=my_img3).grid(row=0, column=5)
+    myTime = StringVar()
+    timechoosen = ttk.Combobox(data_frame, width=10, textvariable=myTime, justify='center', font=('courier'))
+    # Adding combobox drop down list
+    timechoosen['values'] = ('00:00','01:00','02:00','03:00','04:00','05:00','06:00','07:00','08:00','09:00','10:00','11:00')
+    timechoosen.grid(column=5, row=0)
+    var1 = IntVar()
+    c1 = Checkbutton(data_frame, text='AM', variable=var1, onvalue=1, offvalue=0).grid(row=0, column=6)
+    timechoosen.current(1)
+
+    id_label = Label(data_frame, text="Date -", font=('courier',13,'bold'))
+    image4 = Image.open('search png.png')
+    img4 = image4.resize((200, 50))
+    my_img4 = ImageTk.PhotoImage(img4)
+    id_label.grid(row=0, column=8, padx=10, pady=10)
+    entryphoto4 = Label(data_frame, image=my_img4).grid(row=0, column=9)
+
+    myDay = StringVar()
+    myNewStyle = ttk.Style()
+    myNewStyle.theme_use('clam')
+    daychoosen = ttk.Combobox(data_frame, width=10, textvariable=myDay, justify='center', font=('courier'))
+    # Adding combobox drop down list
+
+    present_day = 'Today',
+    Tom_day = datetime.now() + timedelta(1)
+    Tom_day = Tom_day.strftime('%d-%m-%Y')
+    day_after = datetime.now() + timedelta(2)
+    day_after = day_after.strftime('%d-%m-%Y')
+    daychoosen['values'] = (present_day, Tom_day,day_after )
+    daychoosen.grid(column=9, row=0)
+    daychoosen.current(0)
+
+    # Add Some Style
+    style = ttk.Style()
+
+    # Pick A Theme
+    style.theme_use('clam')
+
+    # Configure the Treeview Colors
+    style.configure("Treeview", background="#D3D3D3", foreground="black", rowheight=30, fieldbackground="#D3D3D7",
+                    font=('Courier'))
+    style.configure("Treeview.Heading", background="black", foreground="white", rowheight=30,
+                    fieldbackground="#D3D3D3", font=('Courier'))
+
+    # Change Selected Color
+    style.map('Treeview', background=[('selected', "#347083")])
+
+
+    # Create a Treeview Frame
+    tree_frame = Frame(root)
+    tree_frame.pack(pady=20)
+
+
+    tree_frame2 = Frame(root)
+    tree_frame2.pack(pady=20)
+
+    # Create a Treeview Scrollbar
+    tree_scroll = Scrollbar(tree_frame)
+    tree_scroll.pack(side=RIGHT, fill=Y)
+    tree_scroll2 = Scrollbar(tree_frame2)
+    tree_scroll2.pack(side=RIGHT, fill=Y)
+
+    # Create The Treeview
+    my_tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll.set, selectmode="extended", height=4)
+    my_tree.pack()
+    my_tree2 = ttk.Treeview(tree_frame2, yscrollcommand=tree_scroll2.set, selectmode="extended", height=4)
+    my_tree2.pack()
+
+    # Configure the Scrollbar
+    tree_scroll.config(command=my_tree.yview)
+    tree_scroll2.config(command=my_tree2.yview)
+
+    # Define Our Columns
+    my_tree['columns'] = ('TASK', 'DUE TIME')
+    my_tree2['columns'] = ('TASK', 'DUE TIME')
+
+    # Format Our Columns
+    my_tree.column("#0", width=0, stretch=NO)
+    my_tree.column("TASK", anchor=W, width=500)
+    my_tree.column("DUE TIME", anchor=W, width=300)
+    # ----------------------------------------
+    my_tree2.column("#0", width=0, stretch=NO)
+    my_tree2.column("TASK", anchor=W, width=500)
+    my_tree2.column("DUE TIME", anchor=W, width=300)
+
+    # Create Headings
+    my_tree.heading("#0", text="", anchor=W)
+    my_tree.heading("TASK", text="TASK", anchor=CENTER)
+    my_tree.heading("DUE TIME", text="DUE TIME", anchor=CENTER)
+    # ---------------------------------------------------------
+    my_tree2.heading("#0", text="", anchor=W)
+    my_tree2.heading("TASK", text="TASK", anchor=CENTER)
+    my_tree2.heading("DUE TIME", text="DUE TIME", anchor=CENTER)
+
+    my_tree.tag_configure('oddrow', background="white")
+    my_tree.tag_configure('evenrow', background="lightblue")
+    # --------------------------------------------------
+    my_tree2.tag_configure('oddrow', background="white")
+    my_tree2.tag_configure('evenrow', background="lightblue")
+
+    # -------------------------------------------------------------------------------------------
+    button_frame = LabelFrame(root, text="OPTIONS", font='courier')
+    button_frame.pack(fill="x", expand="yes", padx=20)
+
+
+    add_button = Button(button_frame, text="Add Record", font=('courier', 12), background='lightblue',command=add_function)
+    add_button.grid(row=0, column=1, padx=10, pady=10)
+
+    remove_one_button = Button(button_frame, text="Remove One Selected", font=('courier', 11), background='lightblue',command=remove_one ).grid(row=0, column=3, padx=10, pady=10)
+
+    remove_many_button = Button(button_frame, text="Change Status", font=('courier', 12), background='lightblue', command=change_status).grid(row=0, column=4, padx=10, pady=10)
+    move_up_button = Button(button_frame, text="Move Up", font=('courier', 12), background='lightblue',command=up ).grid(row=0, column=5, padx=10, pady=10)
+    move_down_button = Button(button_frame, text="Move Down", font=('courier', 12), background='lightblue', command=down).grid(row=0, column=6, padx=10, pady=10)
+
+    about = Button(button_frame, font=('courier', 12), background='lightblue', text="About us", command=about_us_page).grid(row=0, column=8, padx=10, pady=10)
+
+    logoutbtn = Button(button_frame, text="Log Out", font=('courier',12), background='lightblue',command=logout).grid(row=0, column=7, padx=10, pady=10)
+    query_database()
+    root.mainloop()
